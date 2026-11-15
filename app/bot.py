@@ -10,7 +10,7 @@ from app.db import Session
 from app.models import Group, Member, ModerationLog, Warning
 from app.services.security_engine import analyze_message, should_auto_moderate
 
-dp=Dispatcher()
+dp=Dispatcher()\nfrom app.bot_extra import register_extra\nregister_extra(dp)
 recent=defaultdict(deque)
 def is_owner(uid): return uid == OWNER_ID and OWNER_ID != 0
 async def is_admin(bot, chat_id, uid):
