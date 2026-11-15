@@ -7,7 +7,7 @@ from aiogram.types import Message, ChatMemberUpdated, BufferedInputFile
 from sqlalchemy import select, func, delete
 from app.config import BOT_TOKEN, OWNER_ID
 from app.db import Session
-from app.models import Group, Member, ModerationLog, Warning
+from app.models import Group, Member, ModerationLog, Warning\nfrom app.services.security_engine import analyze_message, should_auto_moderate
 
 dp=Dispatcher()
 recent=defaultdict(deque)
