@@ -11,6 +11,8 @@ from app.models import Group, Member, ModerationLog, Warning
 from app.models_security import GroupSetting, BlockedUser, CustomFilter, BlockedDomain
 from app.services.security_engine import analyze_message, should_auto_moderate
 from app.bot_extra import register_extra
+from app.services.advanced_security import allow_request, url_allowed, update_trust
+from app.services.moderation import restrict_user
 
 dp=Dispatcher()
 register_extra(dp)
@@ -93,6 +95,9 @@ async def member_update(ev:ChatMemberUpdated):
 @dp.message(F.chat.type.in_({"group","supergroup"}))
 async def group_messages(m:Message):
     if not m.from_user: return
+    if not await allow_request(f"msg:{m.chat.id}:{m.from_user.id}",30,10):
+        await delete_and_log(m,"redis_rate_limit","Rate limit exceeded")
+        return
     await observe(m.chat.id,m.from_user)
     if await is_admin(m.bot,m.chat.id,m.from_user.id): return
     cfg=await get_group(m.chat)
@@ -101,6 +106,7 @@ async def group_messages(m:Message):
     key=(m.chat.id,m.from_user.id)
     # Behaviour-based scoring: username and account age are deliberately excluded.
     threat=analyze_message(body,list(recent_text[key]))
+    await update_trust(m.chat.id,m.from_user.id,(-min(20,threat["score"]/5) if threat["score"] else 0.15),flag=threat["score"]>=50,reason=", ".join(threat["reasons"]))
     if body: recent_text[key].append(body)
     # Media/forward lock policies configured by group admins.
     if feat:
@@ -136,6 +142,11 @@ async def group_messages(m:Message):
     # Duplicate/repeated and behaviour-based high-risk message detection
     if should_auto_moderate(threat,threshold=85):
         await delete_and_log(m,"smart_engine_delete",", ".join(threat["reasons"]))
+        try:
+            await restrict_user(m.bot,m.chat.id,m.from_user.id,minutes=10)
+            await log(m.chat.id,m.from_user.id,"auto_restrict","Critical behaviour score; temporary 10-minute restriction")
+        except Exception:
+            pass
         return
     # Flood protection, emoji/sticker and forward burst limits.
     now=time.monotonic()
