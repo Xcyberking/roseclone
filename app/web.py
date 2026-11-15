@@ -8,8 +8,10 @@ from sqlalchemy import select, func, desc
 from app.config import DASHBOARD_PASSWORD, SESSION_SECRET, OWNER_ID
 from app.db import Session
 from app.models import Group, Member, ModerationLog, Warning
+from app.advanced_web import router as advanced_router
 
 app=FastAPI(title="CyberX Security Dashboard")
+app.include_router(advanced_router)
 app.add_middleware(SessionMiddleware,secret_key=SESSION_SECRET,same_site="lax",https_only=False)
 def page(title,body):
     return f"""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><title>{title} · CyberX</title><style>
@@ -20,17 +22,22 @@ def auth(req):
 async def login_page():
     return page("Login","<div class='card'><h2>Dashboard Login</h2><form method='post'><input type='password' name='password' placeholder='Dashboard password' required><button>Sign in</button></form></div>")
 @app.post("/login")
-async def login(password:str=Form(...)):
+async def login(request:Request,password:str=Form(...)):
     if not DASHBOARD_PASSWORD or not secrets.compare_digest(password,DASHBOARD_PASSWORD): return RedirectResponse("/login?error=1",303)
-    r=RedirectResponse("/",303); r.set_cookie("cx-login","1",httponly=True,samesite="lax"); return r
+    request.session["auth"]=True
+    request.session["role"]="owner"
+    request.session["permissions"]="*"
+    request.session["user_id"]=OWNER_ID
+    return RedirectResponse("/",303)
 @app.middleware("http")
 async def session_gate(request,call_next):
     if request.url.path in ("/login","/health"): return await call_next(request)
     if not request.session.get("auth"): return RedirectResponse("/login",303)
     return await call_next(request)
 @app.get("/logout")
-async def logout():
-    r=RedirectResponse("/login",303); r.delete_cookie("cx-login"); return r
+async def logout(request:Request):
+    request.session.clear()
+    return RedirectResponse("/login",303)
 @app.get("/health")
 async def health(): return {"status":"ok","service":"cyberx"}
 @app.get("/",response_class=HTMLResponse)
