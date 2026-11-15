@@ -7,7 +7,8 @@ from aiogram.types import Message, ChatMemberUpdated, BufferedInputFile
 from sqlalchemy import select, func, delete
 from app.config import BOT_TOKEN, OWNER_ID
 from app.db import Session
-from app.models import Group, Member, ModerationLog, Warning\nfrom app.services.security_engine import analyze_message, should_auto_moderate
+from app.models import Group, Member, ModerationLog, Warning
+from app.services.security_engine import analyze_message, should_auto_moderate
 
 dp=Dispatcher()
 recent=defaultdict(deque)
@@ -43,7 +44,15 @@ async def start(m:Message):
     await m.answer("🛡️ CyberX Security Bot is online. Add me to a group as admin and use /help.")
 @dp.message(Command("help"))
 async def help_cmd(m:Message):
-    await m.answer("/security — group status\n/antiflood on|off\n/antilink on|off\n/welcome on|off\n/warn (reply) [reason]\n/warnings (reply)\n/unwarn (reply)\n/members — observed member count\n/export — CSV of observed members")
+    await m.answer("/security — group status
+/antiflood on|off
+/antilink on|off
+/welcome on|off
+/warn (reply) [reason]
+/warnings (reply)
+/unwarn (reply)
+/members — observed member count
+/export — CSV of observed members")
 @dp.my_chat_member()
 async def added(ev:ChatMemberUpdated):
     if ev.chat.type in ("group","supergroup"):
@@ -81,7 +90,10 @@ async def group_messages(m:Message):
 async def security(m:Message):
     if not await is_admin(m.bot,m.chat.id,m.from_user.id): return
     c=await get_group(m.chat)
-    await m.answer(f"🛡️ Security for {m.chat.title}\nAnti-flood: {c['antiflood_enabled']}\nAnti-link: {c['antilink_enabled']}\nWelcome: {c['welcome_enabled']}")
+    await m.answer(f"🛡️ Security for {m.chat.title}
+Anti-flood: {c['antiflood_enabled']}
+Anti-link: {c['antilink_enabled']}
+Welcome: {c['welcome_enabled']}")
 async def set_flag(m,field,value):
     if not await is_admin(m.bot,m.chat.id,m.from_user.id): return
     async with Session() as s:
@@ -134,7 +146,8 @@ async def members(m:Message):
     if not await is_admin(m.bot,m.chat.id,m.from_user.id): return
     async with Session() as s:
         n=await s.scalar(select(func.count()).select_from(Member).where(Member.chat_id==m.chat.id))
-    await m.answer(f"Observed members: {n}\nNote: only members the bot has observed are listed.")
+    await m.answer(f"Observed members: {n}
+Note: only members the bot has observed are listed.")
 @dp.message(Command("export"))
 async def export(m:Message):
     if not await is_admin(m.bot,m.chat.id,m.from_user.id): return
