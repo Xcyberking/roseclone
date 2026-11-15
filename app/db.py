@@ -8,6 +8,6 @@ engine=create_async_engine(DATABASE_URL, echo=False)
 Session=async_sessionmaker(engine, expire_on_commit=False)
 class Base(DeclarativeBase): pass
 async def init_db():
-    from app import models, models_extra
+    from app import models, models_extra, models_security
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
