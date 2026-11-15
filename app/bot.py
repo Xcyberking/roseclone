@@ -135,10 +135,18 @@ async def group_messages(m:Message):
             await delete_and_log(m,"blocked_domain",f"Blocked domain: {domain.domain}")
             return
     # URL rules (invite links, shorteners and unknown external links are covered by anti-link toggle)
-    urls=re.findall(r"(?:https?://|www\.|t\.me/)[^\s]+",lowered)
-    if cfg["antilink_enabled"] and urls:
-        await delete_and_log(m,"link_removed","Link policy")
-        return
+    urls=re.findall(r"(?:https?://|www\\.|t\\.me/)[^\\s]+",lowered)
+    if urls:
+        allowed,matched=await url_allowed(m.chat.id,body)
+        if not allowed:
+            await delete_and_log(m,"url_policy_block",f"URL policy blocked domain: {matched}")
+            return
+        from app.models_advanced import URLPolicy
+        async with Session() as s:
+            has_allow=await s.scalar(select(func.count()).select_from(URLPolicy).where(URLPolicy.chat_id==m.chat.id,URLPolicy.mode=="allow"))
+        if cfg["antilink_enabled"] and not has_allow:
+            await delete_and_log(m,"link_removed","Anti-link enabled and no allowlist entry matched")
+            return
     # Duplicate/repeated and behaviour-based high-risk message detection
     if should_auto_moderate(threat,threshold=85):
         await delete_and_log(m,"smart_engine_delete",", ".join(threat["reasons"]))
