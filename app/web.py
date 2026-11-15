@@ -26,7 +26,7 @@ async def login(password:str=Form(...)):
 @app.middleware("http")
 async def session_gate(request,call_next):
     if request.url.path in ("/login","/health"): return await call_next(request)
-    if request.cookies.get("cx-login")!="1": return RedirectResponse("/login",303)
+    if not request.session.get("auth"): return RedirectResponse("/login",303)
     return await call_next(request)
 @app.get("/logout")
 async def logout():
