@@ -13,7 +13,7 @@ app=FastAPI(title="CyberX Security Dashboard")
 app.add_middleware(SessionMiddleware,secret_key=SESSION_SECRET,same_site="lax",https_only=False)
 def page(title,body):
     return f"""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><title>{title} · CyberX</title><style>
-    *{{box-sizing:border-box}}body{{margin:0;background:#f4f8ff;color:#15345b;font:15px Arial}}header{{background:#155eef;color:white;padding:18px 20px;font-size:21px;font-weight:800}}nav{{display:flex;gap:8px;overflow:auto;padding:12px;background:white;position:sticky;top:0}}nav a{{white-space:nowrap;color:#155eef;text-decoration:none;border:1px solid #d7e4ff;border-radius:12px;padding:10px}}main{{max-width:1100px;margin:auto;padding:16px}}.card{{background:white;border:1px solid #e2ebff;border-radius:18px;padding:17px;margin:12px 0;box-shadow:0 6px 22px #164a8a0b}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}}.num{{font-size:28px;font-weight:800;color:#155eef}}input,select,textarea,button{{width:100%;padding:12px;border:1px solid #cbdaf5;border-radius:10px;margin:6px 0;font:inherit}}button{{background:#155eef;color:white;border:0;font-weight:700}}table{{width:100%;border-collapse:collapse}}td,th{{padding:9px;border-bottom:1px solid #e5edfb;text-align:left}}small{{color:#637a9c}}.danger{{color:#b42318}}</style></head><body><header>🛡️ CyberX Security · {title}</header><nav><a href='/'>Overview</a><a href='/groups'>Groups</a><a href='/members'>Members</a><a href='/security'>Security</a><a href='/customize'>Customize</a><a href='/superadmin'>Super Admin</a><a href='/backup'>Backup</a><a href='/logout'>Logout</a></nav><main>{body}</main></body></html>"""
+    *{{box-sizing:border-box}}body{{margin:0;background:#f4f8ff;color:#15345b;font:15px Arial}}header{{background:#155eef;color:white;padding:18px 20px;font-size:21px;font-weight:800}}nav{{display:flex;gap:8px;overflow:auto;padding:12px;background:white;position:sticky;top:0}}nav a{{white-space:nowrap;color:#155eef;text-decoration:none;border:1px solid #d7e4ff;border-radius:12px;padding:10px}}main{{max-width:1100px;margin:auto;padding:16px}}.card{{background:white;border:1px solid #e2ebff;border-radius:18px;padding:17px;margin:12px 0;box-shadow:0 6px 22px #164a8a0b}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}}.num{{font-size:28px;font-weight:800;color:#155eef}}input,select,textarea,button{{width:100%;padding:12px;border:1px solid #cbdaf5;border-radius:10px;margin:6px 0;font:inherit}}button{{background:#155eef;color:white;border:0;font-weight:700}}table{{width:100%;border-collapse:collapse}}td,th{{padding:9px;border-bottom:1px solid #e5edfb;text-align:left}}small{{color:#637a9c}}.danger{{color:#b42318}}</style></head><body><header>🛡️ CyberX Security · {title}</header><nav><a href='/'>Overview</a><a href='/groups'>Groups</a><a href='/members'>Members</a><a href='/security'>Security</a><a href='/customize'>Customize</a><a href='/superadmin'>Super Admin</a><a href='/reports'>Reports</a><a href='/backup'>Backup</a><a href='/logout'>Logout</a></nav><main>{body}</main></body></html>"""
 def auth(req):
     return bool(req.session.get("auth"))
 @app.get("/login",response_class=HTMLResponse)
@@ -36,8 +36,17 @@ async def health(): return {"status":"ok","service":"cyberx"}
 @app.get("/",response_class=HTMLResponse)
 async def home():
     async with Session() as s:
-        groups=await s.scalar(select(func.count()).select_from(Group)); members=await s.scalar(select(func.count()).select_from(Member)); logs=await s.scalar(select(func.count()).select_from(ModerationLog)); warns=await s.scalar(select(func.count()).select_from(Warning))
-    body=f"<div class='grid'>{''.join(f'<div class=card><small>{k}</small><div class=num>{v}</div></div>' for k,v in [('Groups',groups),('Observed members',members),('Security actions',logs),('Warnings',warns)])}</div><div class=card><h3>Security center</h3><p>Manage group protection, member records, logs, exports and appearance settings.</p><small>Member directory contains observed users only, not a full Telegram group roster.</small></div>"
+        groups=await s.scalar(select(func.count()).select_from(Group))
+        members=await s.scalar(select(func.count()).select_from(Member))
+        logs=await s.scalar(select(func.count()).select_from(ModerationLog))
+        warns=await s.scalar(select(func.count()).select_from(Warning))
+        spam=await s.scalar(select(func.count()).select_from(ModerationLog).where(ModerationLog.action.like("%spam%") | ModerationLog.action.like("%flood%") | ModerationLog.action.like("%smart%")))
+        links=await s.scalar(select(func.count()).select_from(ModerationLog).where(ModerationLog.action.like("%link%")))
+        suspicious=await s.scalar(select(func.count()).select_from(ModerationLog).where(ModerationLog.action.like("%suspicious%") | ModerationLog.action.like("%raid%")))
+        active=await s.scalar(select(func.count()).select_from(Group).where(Group.antiflood_enabled==True))
+    score=max(0,min(100,100-(spam+links+suspicious)//max(1,groups*10)))
+    cards=[("Total Members",members),("Spam Blocked",spam),("Links Removed",links),("Suspicious Events",suspicious),("Warnings",warns),("Security Score",str(score)+"/100"),("Active Protection",active)]
+    body="<div class='grid'>"+''.join(f"<div class='card'><small>{k}</small><div class='num'>{v}</div></div>" for k,v in cards)+"</div><div class='card'><h3>Security overview</h3><p>Groups: "+str(groups)+" · Total security events: "+str(logs)+"</p><p>Enabled protection count reflects anti-flood enabled groups. Review group settings and event history regularly.</p><small>Member totals include only accounts the bot has observed, not a full historic Telegram roster. Security score is a simple activity indicator, not a guarantee of safety.</small></div>"
     return page("Overview",body)
 @app.get("/groups",response_class=HTMLResponse)
 async def groups():
@@ -78,3 +87,17 @@ async def backup():
     payload={"groups":[{"chat_id":g.chat_id,"title":g.title,"welcome_enabled":g.welcome_enabled,"welcome_text":g.welcome_text,"antiflood_enabled":g.antiflood_enabled,"antilink_enabled":g.antilink_enabled} for g in gs],"members":[{"chat_id":m.chat_id,"user_id":m.user_id,"username":m.username,"full_name":m.full_name,"status":m.status} for m in ms],"logs":[{"chat_id":x.chat_id,"user_id":x.user_id,"action":x.action,"reason":x.reason} for x in ls],"warnings":[{"chat_id":w.chat_id,"user_id":w.user_id,"reason":w.reason} for w in ws]}
     data=json.dumps(payload,ensure_ascii=False,indent=2).encode()
     return StreamingResponse(io.BytesIO(data),media_type="application/json",headers={"Content-Disposition":"attachment; filename=cyberx-backup.json"})
+
+@app.get("/reports",response_class=HTMLResponse)
+async def reports():
+    async with Session() as s:
+        rows=(await s.scalars(select(ModerationLog).order_by(desc(ModerationLog.created_at)).limit(500))).all()
+    body="<h2>Security event history</h2><p><a href='/reports.csv'>Download CSV report</a></p>"+''.join(f"<div class='card'><b>{x.action}</b> · user {x.user_id}<p>{x.reason}</p><small>{x.created_at}</small></div>" for x in rows)
+    return page("Reports",body)
+@app.get("/reports.csv")
+async def reports_csv():
+    async with Session() as s:
+        rows=(await s.scalars(select(ModerationLog).order_by(desc(ModerationLog.created_at)).limit(5000))).all()
+    out=io.StringIO(); w=csv.writer(out); w.writerow(["chat_id","user_id","action","reason","created_at"])
+    for x in rows: w.writerow([x.chat_id,x.user_id,x.action,x.reason,x.created_at])
+    return StreamingResponse(io.BytesIO(out.getvalue().encode()),media_type="text/csv",headers={"Content-Disposition":"attachment; filename=cyberx-security-report.csv"})
