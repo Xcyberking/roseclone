@@ -9,7 +9,7 @@ from database.models import Group, GroupUser, Lock, User, Warning, WarningPolicy
 from database.session import async_session
 from utils.permissions import is_chat_admin
 
-URL_RE = re.compile(r"(?:https?://|www\\.)\\S+|t\\.me/\\S+", re.I)
+URL_RE = re.compile(r"(?:https?://|www\.)\S+|t\.me/\S+", re.I)
 
 
 def message_lock_types(message: Message) -> set[str]:
@@ -98,12 +98,12 @@ class LockEnforcementMiddleware(BaseMiddleware):
             try:
                 until = datetime.utcnow() + timedelta(minutes=mute_minutes)
                 await event.chat.restrict(event.from_user.id, permissions=ChatPermissions(can_send_messages=False), until_date=until)
-                await event.answer(f"🔇 <b>{event.from_user.full_name}</b> ko {mute_minutes} minute ke liye mute kiya gaya.\\nReason: {reason}")
+                await event.answer(f"🔇 <b>{event.from_user.full_name}</b> ko {mute_minutes} minute ke liye mute kiya gaya.\nReason: {reason}")
             except Exception:
                 pass
         else:
             try:
-                await event.answer(f"⚠️ <b>{event.from_user.full_name}</b> ko warning {count}/{threshold} mili.\\nReason: {reason}")
+                await event.answer(f"⚠️ <b>{event.from_user.full_name}</b> ko warning {count}/{threshold} mili.\nReason: {reason}")
             except Exception:
                 pass
         return None
