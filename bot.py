@@ -255,7 +255,17 @@ async def admin_callback(q, ctx):
             [InlineKeyboardButton("💎 Give 30d Premium", callback_data=f"adm_premon_{uid}"), InlineKeyboardButton("❌ Remove Premium", callback_data=f"adm_premoff_{uid}")],
             [InlineKeyboardButton("◀ Users", callback_data="adm_users"), InlineKeyboardButton("🏠 Home", callback_data="adm_home")],
         ])
-        await q.edit_message_text(f"👤 *{html.escape(row['first_name'])}*\nID: `{uid}`\nUsername: @{row.get('username') or 'none'}\nBalance: ${row['balance']:,}\nKills: {row['kills']}\nPremium: {status}", parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        safe_name = html.escape(str(row.get("first_name") or "User"))
+        safe_username = html.escape(str(row.get("username") or "none"))
+        profile_text = (
+            f"👤 <b>{safe_name}</b>\n"
+            f"ID: <code>{uid}</code>\n"
+            f"Username: @{safe_username}\n"
+            f"Balance: ${row['balance']:,}\n"
+            f"Kills: {row['kills']}\n"
+            f"Premium: {html.escape(status)}"
+        )
+        await q.edit_message_text(profile_text, parse_mode=ParseMode.HTML, reply_markup=kb)
     elif data.startswith(("adm_add_", "adm_set_")):
         action, uid = data.split("_",2)[1], int(data.rsplit("_",1)[1])
         ctx.user_data["admin_wait"] = f"{action}_balance:{uid}"
